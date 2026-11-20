@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { watchExamActivity } from './examActivity.js';
 
+function beforeUnloadEvent() {
+  const event = new Event('beforeunload', { cancelable: true });
+  // A browser BeforeUnloadEvent has a writable string returnValue. Node 20's
+  // generic Event only exposes a getter, so model the browser-specific field.
+  Object.defineProperty(event, 'returnValue', { value: '', writable: true });
+  return event;
+}
+
 function setup() {
   const doc = new EventTarget();
   const win = new EventTarget();
@@ -82,9 +90,10 @@ test('clipboard, right-click, and printing produce notifications', () => {
 
 test('leaving an active exam requests browser confirmation; cleanup removes every listener and pending warning', async () => {
   const guard = setup();
-  const leaving = new Event('beforeunload', { cancelable: true });
+  const leaving = beforeUnloadEvent();
   guard.win.dispatchEvent(leaving);
   assert.equal(leaving.defaultPrevented, true);
+  assert.equal(leaving.returnValue, '');
   guard.focus(false);
   guard.win.dispatchEvent(new Event('blur'));
   guard.stop();
@@ -92,7 +101,7 @@ test('leaving an active exam requests browser confirmation; cleanup removes ever
   guard.doc.visibilityState = 'hidden';
   guard.doc.dispatchEvent(new Event('visibilitychange'));
   guard.doc.dispatchEvent(new Event('paste'));
-  const afterCleanup = new Event('beforeunload', { cancelable: true });
+  const afterCleanup = beforeUnloadEvent();
   guard.win.dispatchEvent(afterCleanup);
   assert.equal(afterCleanup.defaultPrevented, false);
   assert.equal(guard.warnings.length, 0);
